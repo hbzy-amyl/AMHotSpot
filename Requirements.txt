@@ -1,0 +1,30 @@
+# AMHotSpot — Requirements
+# Python 3.8+
+
+# Deep Learning
+torch>=2.0.0
+transformers>=4.30.0
+
+# Scientific Computing
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.2.0
+
+# Explainability
+shap>=0.41.0
+xgboost>=1.7.0
+
+# Bioinformatics
+biopython>=1.81
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# PDF & Image Processing (optional — for figure generation)
+Pillow>=9.0.0
+pdf2image>=1.16.0
+img2pdf>=0.4.0
+
+# 3D Visualization (optional — for ribbon figures)
+# pymol-open-source>=2.5.0   # install separately: pip install pymol-open-source
