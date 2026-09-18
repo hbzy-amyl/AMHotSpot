@@ -126,6 +126,11 @@ AMHotSpot/
 │   └── multimodal_model_loocv.json  # LOOCV results
 └── requirements.txt
 
+## Availability
+
+Code and datasets will be made publicly available
+upon acceptance of the manuscript.
+
 ## Citation
 If you use AMHotSpot in your research, please cite:
 bibtex
