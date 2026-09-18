@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amyloid Hotspot Results Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f0; color: #1a1a1a; font-size: 15px; }
+
+  .page { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ── Header ── */
+  .top-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; flex-wrap: wrap; }
+  .app-icon { width: fit; height: 42px; background: #1a56db; border-radius: 10px; display: grid; place-items: center; color: #fff; font-size: 20px; font-weight: 700; flex-shrink: 0; padding:4px }
+  .app-title { font-size: 20px; font-weight: 600; }
+  .app-sub { font-size: 13px; color: #666; margin-top: 2px; }
+
+  /* ── Upload zone ── */
+  .upload-zone { border: 2px dashed #c0c0b8; border-radius: 12px; padding: 28px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s; background: #fff; margin-bottom: 24px; }
+  .upload-zone:hover, .upload-zone.drag { border-color: #1a56db; background: #eef3ff; }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .upload-hint { font-size: 13px; color: #888; }
+  .demo-btn { margin-top: 12px; padding: 7px 18px; border: 1px solid #c0c0b8; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; color: #444; }
+  .demo-btn:hover { background: #f0f0e8; }
+
+  /* ── Protein selector ── */
+  .selector-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .selector-label { font-size: 13px; color: #666; font-weight: 500; margin-right: 4px; }
+  .prot-btn { padding: 6px 14px; border-radius: 20px; border: 1.5px solid #d0d0c8; background: #fff; font-size: 13px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .prot-btn:hover { border-color: #1a56db; color: #1a56db; }
+  .prot-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; font-weight: 600; }
+
+  /* ── Cards ── */
+  .card { background: #fff; border-radius: 12px; padding: 20px 22px; border: 1px solid #e8e8e0; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #888; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
+  .card-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Stats row ── */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: #f5f5f0; border-radius: 10px; padding: 14px 16px; }
+  .stat-val { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-label { font-size: 12px; color: #666; margin-top: 5px; line-height: 1.4; }
+
+  /* ── Sequence viewer ── */
+  .seq-scroll { overflow-x: auto; padding-bottom: 8px; }
+  .seq-row { display: flex; gap: 1px; min-width: max-content; }
+  .aa-block { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .aa-letter { width: 20px; height: 20px; display: grid; place-items: center; font-size: 11px; font-weight: 700; border-radius: 3px; font-family: monospace; cursor: default; }
+  .aa-idx { font-size: 8px; color: #aaa; font-family: monospace; }
+  .aa-bar-wrap { height: 40px; display: flex; align-items: flex-end; }
+  .aa-bar { width: 20px; border-radius: 2px 2px 0 0; min-height: 2px; }
+
+  /* Legend chips */
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; }
+  .legend-sq { width: 12px; height: 12px; border-radius: 2px; }
+
+  /* ── Hotspot table ── */
+  .hs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .hs-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #888; border-bottom: 1px solid #e8e8e0; }
+  .hs-table td { padding: 11px 10px; border-bottom: 1px solid #f0f0e8; vertical-align: middle; }
+  .hs-table tr:last-child td { border-bottom: none; }
+  .frag { font-family: monospace; font-size: 13px; background: #f5f5f0; padding: 3px 8px; border-radius: 5px; letter-spacing: .5px; }
+  .conf-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .conf-bar-bg { flex: 1; height: 6px; background: #f0f0e8; border-radius: 3px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 3px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+
+  /* ── Feature chart ── */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 620px) { .chart-grid { grid-template-columns: 1fr; } }
+  .chart-wrap { position: relative; height: 160px; }
+
+  .explain-box { background: #fffbe6; border: 1px solid #f0e060; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #5a4a00; margin-bottom: 12px; line-height: 1.6; }
+  .explain-box strong { font-weight: 600; }
+
+  /* ── Modality importance ── */
+  .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 500px) { .modal-row { grid-template-columns: 1fr; } }
+  .modal-item { display: flex; flex-direction: column; gap: 5px; }
+  .modal-name { font-size: 12px; color: #555; font-weight: 600; }
+  .modal-bar-bg { height: 8px; background: #f0f0e8; border-radius: 4px; overflow: hidden; }
+  .modal-bar-fill { height: 100%; border-radius: 4px; }
+  .modal-pct { font-size: 12px; color: #888; }
+
+  /* ── Empty/loading ── */
+  .empty { text-align: center; padding: 50px 20px; color: #888; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* ── Tooltip ── */
+  #tt { position: fixed; background: #1a1a1a; color: #fff; padding: 7px 11px; border-radius: 7px; font-size: 12px; pointer-events: none; opacity: 0; z-index: 999; max-width: 200px; line-height: 1.6; transition: opacity .1s; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="top-bar">
+    <div class="app-icon">AMHotSpot</div>
+    <div>
+      <div class="app-title">Amyloid Hotspot Results Viewer</div>
+      <div class="app-sub">Load your predictions.json to visualize hotspot predictions</div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+    <input type="file" id="fileInput" accept=".json">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Click to open your predictions.json file</div>
+    <div class="upload-hint">Drag and drop also works · Generated by multimodal_hotspot_pipeline.py</div>
+    <button class="demo-btn" onclick="event.stopPropagation(); loadDemo()">Load demo data instead</button>
+  </div>
+
+  <!-- SHAP upload (optional) -->
+  <div class="upload-zone" id="dropzoneShap" onclick="document.getElementById('shapInput').click()" style="padding:14px;margin-bottom:24px">
+    <input type="file" id="shapInput" accept=".json">
+    <div class="upload-title" style="font-size:14px;font-weight:500">
+      + Load <code>selected_terminal_features.json</code>
+      <span style="font-weight:400;color:#888"> (optional — shows SHAP feature importances)</span>
+    </div>
+    <div class="upload-hint">results/selected_terminal_features.json · generated by shap_selection_fixed.py</div>
+  </div>
+
+  <!-- Main content -->
+  <div id="content" style="display:none">
+
+    <!-- Protein selector -->
+    <div class="selector-row" id="selectorRow">
+      <span class="selector-label">Protein:</span>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- Sequence viewer -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:#1a56db"></span>Protein sequence — colored by hotspot probability</div>
+      <div class="explain-box">
+        Each letter = one amino acid. <strong>Red/orange = predicted hotspot</strong> (high probability of forming amyloid fibrils). 
+        Blue = safe region. The bars below show the exact probability score for each residue.
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#e53e3e"></div>Very likely hotspot (≥ 80%)</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#dd6b20"></div>Likely hotspot (50–80%)</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#3182ce"></div>Safe region (&lt; 50%)</div>
+        <div class="legend-item"><div class="legend-sq" style="background:none; border:2px solid #38a169"></div>Ground truth hotspot</div>
+      </div>
+      <div class="seq-scroll"><div id="seqRow" class="seq-row"></div></div>
+    </div>
+
+    <!-- Hotspot table -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:#e53e3e"></span>Predicted hotspot regions</div>
+      <div class="explain-box">
+        Each row is one continuous stretch of the protein predicted to form amyloid fibrils.
+        <strong>Confidence</strong> = how sure the model is (higher = better).
+        <strong>Disorder</strong> = how flexible the region is (1.0 = fully disordered).
+        <strong>pLDDT</strong> = AlphaFold structure confidence (1.0 = well-structured).
+        <strong>RSA</strong> = how exposed the region is on the protein surface (1.0 = fully exposed).
+      </div>
+      <div id="hotspotTable"></div>
+    </div>
+
+    <!-- Feature charts -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:#805ad5"></span>Per-residue feature profiles</div>
+      <div class="explain-box">
+        These 4 charts show the signal from each data source used by the model.
+        <strong>Red shading</strong> marks predicted hotspot regions across all charts so you can see how features align.
+      </div>
+      <div class="chart-grid">
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Hotspot probability</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">Model output — main prediction score</div>
+          <div class="chart-wrap"><canvas id="chartProb"></canvas></div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Disorder score (IUPred3)</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">High = flexible/disordered region</div>
+          <div class="chart-wrap"><canvas id="chartDis"></canvas></div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#333">AlphaFold pLDDT score</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">High = confident 3D structure</div>
+          <div class="chart-wrap"><canvas id="chartPlddt"></canvas></div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#333">Solvent accessibility (RSA)</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">High = surface exposed residue</div>
+          <div class="chart-wrap"><canvas id="chartRsa"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modality importance -->
+    <div class="card" id="modalCard" style="display:none">
+      <div class="card-title"><span class="dot" style="background:#dd6b20"></span>Which data source mattered most?</div>
+      <div class="explain-box">
+        The model automatically learns how much to rely on each data source for each residue.
+        <strong>Higher % = that feature was more important</strong> for predicting hotspots in this protein.
+        Values are averaged across all residues.
+      </div>
+      <div class="modal-row" id="modalRow"></div>
+    </div>
+
+    <!-- SHAP terminal features -->
+    <div class="card" id="shapCard" style="display:none">
+      <div class="card-title"><span class="dot" style="background:#38a169"></span>SHAP terminal feature importances</div>
+      <div class="explain-box">
+        Physicochemical properties of the N- and C-terminal regions selected by SHAP as most predictive.
+        <strong>Blue = N-terminal · Red = C-terminal.</strong>
+        Load <code>selected_terminal_features.json</code> above to see this panel.
+      </div>
+      <div id="shapMeta" style="font-size:13px;color:#666;margin-bottom:12px"></div>
+      <div id="shapRows"></div>
+    </div>
+
+  </div>
+</div>
+<div id="tt"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let data = [], activeIdx = 0, shapData = null;
+let charts = {};
+const tt = document.getElementById('tt');
+
+// ── File upload ───────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { try { initData(JSON.parse(ev.target.result)); } catch(e) { alert('Invalid JSON file: ' + e.message); } };
+  r.readAsText(f);
+});
+
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { try { initData(JSON.parse(ev.target.result)); } catch(e) { alert('Invalid JSON.'); } };
+  r.readAsText(f);
+});
+
+// ── Demo data ─────────────────────────────────────────────────────────────────
+function loadDemo() {
+  const L1 = 42, seq1 = 'DAEFRHDSGYEVHHQKLVFFAEDVGSNKGAIIGLMVGGVVIA';
+  const p1 = seq1.split('').map((_,i) => {
+    if (i>=17&&i<=21) return 0.72+Math.random()*0.22;
+    if (i>=29&&i<=41) return 0.78+Math.random()*0.18;
+    return 0.05+Math.random()*0.25;
+  });
+  const seq2 = 'MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQK';
+  const p2 = seq2.split('').map((_,i) => {
+    if (i>=3&&i<=9)   return 0.75+Math.random()*0.20;
+    if (i>=61&&i<=75) return 0.80+Math.random()*0.16;
+    return 0.05+Math.random()*0.28;
+  });
+  const seq3 = 'KCNTATCATQRLANFLVHSSNNFGAILSSTNVGSNTY';
+  const p3 = seq3.split('').map((_,i) => {
+    if (i>=8&&i<=18)  return 0.76+Math.random()*0.20;
+    if (i>=20&&i<=29) return 0.82+Math.random()*0.15;
+    return 0.06+Math.random()*0.22;
+  });
+
+  function makeDis(probs) { return probs.map(p => Math.min(1, p*0.9 + Math.random()*0.15)); }
+  function makePlddt(probs) { return probs.map(p => Math.max(0, 0.9-p*0.5 + Math.random()*0.2)); }
+  function makeRsa(probs)   { return probs.map(p => Math.min(1, p*0.7 + 0.1 + Math.random()*0.2)); }
+  function makeGate(probs)  { return probs.map(() => [
+    0.35+Math.random()*0.15, 0.20+Math.random()*0.10,
+    0.25+Math.random()*0.10, 0.15+Math.random()*0.10
+  ]);}
+  function getBounds(probs, seq) {
+    const b=[]; let in_=false,s=-1;
+    probs.forEach((p,i)=>{ if(p>=0.5&&!in_){in_=true;s=i;}else if(p<0.5&&in_){if(i-s>=4)b.push({start:s,end:i-1,length:i-s,mean_prob:parseFloat((probs.slice(s,i).reduce((a,v)=>a+v,0)/(i-s)).toFixed(3))});in_=false;}});
+    if(in_&&probs.length-s>=4) b.push({start:s,end:probs.length-1,length:probs.length-s,mean_prob:parseFloat((probs.slice(s).reduce((a,v)=>a+v,0)/(probs.length-s)).toFixed(3))});
+    return b;
+  }
+
+  initData([
+    { id:'Abeta42', sequence:seq1, per_residue_probs:p1.map(v=>+v.toFixed(4)), disorder_scores:makeDis(p1).map(v=>+v.toFixed(4)), plddt_scores:makePlddt(p1).map(v=>+v.toFixed(4)), rsa_scores:makeRsa(p1).map(v=>+v.toFixed(4)), gate_weights:makeGate(p1), hotspot_boundaries:getBounds(p1,seq1), true_hotspots:[[17,21],[29,42]] },
+    { id:'alpha-Synuclein', sequence:seq2, per_residue_probs:p2.map(v=>+v.toFixed(4)), disorder_scores:makeDis(p2).map(v=>+v.toFixed(4)), plddt_scores:makePlddt(p2).map(v=>+v.toFixed(4)), rsa_scores:makeRsa(p2).map(v=>+v.toFixed(4)), gate_weights:makeGate(p2), hotspot_boundaries:getBounds(p2,seq2), true_hotspots:[[3,9],[61,78]] },
+    { id:'hIAPP', sequence:seq3, per_residue_probs:p3.map(v=>+v.toFixed(4)), disorder_scores:makeDis(p3).map(v=>+v.toFixed(4)), plddt_scores:makePlddt(p3).map(v=>+v.toFixed(4)), rsa_scores:makeRsa(p3).map(v=>+v.toFixed(4)), gate_weights:makeGate(p3), hotspot_boundaries:getBounds(p3,seq3), true_hotspots:[[8,18],[20,29]] },
+  ]);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function normalizeEntry(e) {
+  // Handle both array and single-object JSON
+  if (!e.sequence && e.seq)      e.sequence = e.seq;
+  if (!e.sequence && e.protein_sequence) e.sequence = e.protein_sequence;
+
+  // Normalize true_hotspots — pipeline stores as [[s,e],...] or [{start,end},...]
+  if (e.true_hotspots && !Array.isArray(e.true_hotspots)) {
+    e.true_hotspots = Object.values(e.true_hotspots);
+  }
+
+  // hotspot_boundaries: ensure {start, end, length, mean_prob}
+  if (e.hotspot_boundaries) {
+    e.hotspot_boundaries = e.hotspot_boundaries.map(h => ({
+      start:     h.start     ?? h[0] ?? 0,
+      end:       h.end       ?? h[1] ?? 0,
+      length:    h.length    ?? (h.end - h.start + 1) ?? 1,
+      mean_prob: h.mean_prob ?? h.confidence ?? 0.5,
+    }));
+  } else {
+    // Build boundaries from per_residue_probs if missing
+    const probs = e.per_residue_probs || [];
+    const bounds = [], threshold = 0.35, minLen = 4;
+    let inHS = false, start = 0;
+    probs.forEach((p, i) => {
+      if (p >= threshold && !inHS) { inHS = true; start = i; }
+      else if (p < threshold && inHS) {
+        if (i - start >= minLen) {
+          const seg = probs.slice(start, i);
+          bounds.push({ start, end: i-1, length: i-start,
+            mean_prob: +(seg.reduce((a,v)=>a+v,0)/seg.length).toFixed(3) });
+        }
+        inHS = false;
+      }
+    });
+    if (inHS && probs.length - start >= minLen) {
+      const seg = probs.slice(start);
+      bounds.push({ start, end: probs.length-1, length: seg.length,
+        mean_prob: +(seg.reduce((a,v)=>a+v,0)/seg.length).toFixed(3) });
+    }
+    e.hotspot_boundaries = bounds;
+  }
+  return e;
+}
+
+function initData(d) {
+  // Accept both array and single object
+  data = Array.isArray(d) ? d.map(normalizeEntry) : [normalizeEntry(d)];
+  document.getElementById('content').style.display = 'block';
+  document.querySelector('.upload-zone').style.display = 'none';
+  buildSelector();
+  render(0);
+}
+
+function buildSelector() {
+  const row = document.getElementById('selectorRow');
+  row.innerHTML = '<span class="selector-label">Protein:</span>';
+  data.forEach((d,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'prot-btn' + (i===0?' active':'');
+    btn.textContent = d.id;
+    btn.onclick = () => render(i);
+    row.appendChild(btn);
+  });
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render(idx) {
+  activeIdx = idx;
+  document.querySelectorAll('.prot-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  const d = data[idx];
+  renderStats(d);
+  renderSequence(d);
+  renderHotspotTable(d);
+  renderCharts(d);
+  renderModality(d);
+  renderShap();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats(d) {
+  const probs = d.per_residue_probs || [];
+  const hs    = d.hotspot_boundaries || [];
+  const maxP  = probs.length ? Math.max(...probs) : 0;
+  const hsRes = new Set(); hs.forEach(h=>{ for(let i=h.start;i<=h.end;i++) hsRes.add(i); });
+  const row   = document.getElementById('statsRow');
+  row.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-val" style="color:#e53e3e">${hs.length}</div>
+      <div class="stat-label">Hotspot regions predicted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" style="color:#dd6b20">${hsRes.size}</div>
+      <div class="stat-label">Hotspot residues total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" style="color:#1a56db">${(maxP*100).toFixed(0)}%</div>
+      <div class="stat-label">Highest confidence score</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" style="color:#555">${d.sequence ? d.sequence.length : '—'}</div>
+      <div class="stat-label">Total amino acids</div>
+    </div>`;
+}
+
+// ── Sequence ──────────────────────────────────────────────────────────────────
+function aaColor(p) {
+  if (p >= 0.80) return '#e53e3e';
+  if (p >= 0.65) return '#dd6b20';
+  if (p >= 0.50) return '#f6ad55';
+  if (p >= 0.30) return '#90cdf4';
+  return '#bee3f8';
+}
+function aaTextColor(p) { return p >= 0.5 ? '#fff' : '#2b6cb0'; }
+
+function renderSequence(d) {
+  const seq   = d.sequence || '';
+  const probs = d.per_residue_probs || [];
+  const trueSet = new Set();
+  (d.true_hotspots||[]).forEach(h=>{
+    const s = Array.isArray(h) ? h[0] : h.start;
+    const e = Array.isArray(h) ? h[1] : h.end;
+    for(let i=s;i<=e;i++) trueSet.add(i);
+  });
+
+  const maxP = Math.max(...probs, 0.01);
+  const row  = document.getElementById('seqRow');
+  row.innerHTML = '';
+
+  probs.forEach((p, i) => {
+    const block = document.createElement('div');
+    block.className = 'aa-block';
+    const border = trueSet.has(i) ? '2px solid #38a169' : '2px solid transparent';
+    const barH   = Math.round((p/maxP)*36) + 2;
+    block.innerHTML = `
+      <div class="aa-letter" style="background:${aaColor(p)};color:${aaTextColor(p)};border:${border}" 
+           onmouseenter="showTT(event,'Residue ${i}: ${seq[i]||'?'}<br>Prob: <b>${(p*100).toFixed(1)}%</b>${trueSet.has(i)?'<br><span style=color:#86efac>✓ True hotspot</span>':''}')"
+           onmouseleave="hideTT()">${seq[i]||'?'}</div>
+      <div class="aa-idx">${i%10===0?i:''}</div>
+      <div class="aa-bar-wrap">
+        <div class="aa-bar" style="height:${barH}px;background:${aaColor(p)}"></div>
+      </div>`;
+    row.appendChild(block);
+  });
+}
+
+// ── Hotspot table ─────────────────────────────────────────────────────────────
+function renderHotspotTable(d) {
+  const hs  = d.hotspot_boundaries || [];
+  const seq = d.sequence || '';
+  const dis = d.disorder_scores  || [];
+  const pl  = d.plddt_scores     || [];
+  const rsa = d.rsa_scores       || [];
+  const trueHS = (d.true_hotspots||[]);
+
+  const wrap = document.getElementById('hotspotTable');
+  if (!hs.length) {
+    wrap.innerHTML = '<div style="padding:20px;text-align:center;color:#888;font-size:14px">No hotspot regions predicted above the confidence threshold.</div>';
+    return;
+  }
+
+  let html = `<table class="hs-table">
+    <thead><tr>
+      <th>#</th><th>Position</th><th>Fragment sequence</th><th>Length</th>
+      <th>Confidence</th><th>Disorder</th><th>pLDDT</th><th>RSA</th><th>Known?</th>
+    </tr></thead><tbody>`;
+
+  hs.forEach((h, i) => {
+    const frag  = seq.slice(h.start, h.end+1);
+    const sl=h.start, el=h.end+1, n=h.length;
+    const avgDis  = dis.length  ? dis.slice(sl,el).reduce((a,v)=>a+v,0)/n : 0;
+    const avgPl   = pl.length   ? pl.slice(sl,el).reduce((a,v)=>a+v,0)/n  : 0;
+    const avgRsa  = rsa.length  ? rsa.slice(sl,el).reduce((a,v)=>a+v,0)/n : 0;
+    const isKnown = trueHS.some(t=>{ const s=Array.isArray(t)?t[0]:t.start, e=Array.isArray(t)?t[1]:t.end; return Math.max(s,h.start)<=Math.min(e,h.end); });
+    const pct = (h.mean_prob*100).toFixed(1);
+    const barColor = h.mean_prob>=0.8?'#e53e3e':h.mean_prob>=0.6?'#dd6b20':'#f6ad55';
+
+    html += `<tr>
+      <td><b>${i+1}</b></td>
+      <td style="font-family:monospace;font-size:13px">${h.start}–${h.end}</td>
+      <td><span class="frag">${frag}</span></td>
+      <td>${n} aa</td>
+      <td>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar-bg"><div class="conf-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+          <span style="font-size:13px;font-weight:600;color:${barColor};min-width:42px">${pct}%</span>
+        </div>
+      </td>
+      <td>${(avgDis).toFixed(2)}</td>
+      <td>${(avgPl).toFixed(2)}</td>
+      <td>${(avgRsa).toFixed(2)}</td>
+      <td>${isKnown
+        ? '<span class="badge" style="background:#dcfce7;color:#166534">✓ Known</span>'
+        : '<span class="badge" style="background:#f0f0e8;color:#555">Novel</span>'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try{c.destroy();}catch(e){} });
+  charts = {};
+}
+
+function makeChartData(vals, hs, color, label) {
+  const N = vals.length;
+  const bgColors = vals.map((v, i) => {
+    const inHS = hs.some(h => i>=h.start && i<=h.end);
+    return inHS ? color.replace('1)', '0.85)') : 'rgba(148,163,184,0.35)';
+  });
+  return {
+    labels: vals.map((_,i)=>i),
+    datasets:[{
+      label, data:vals,
+      backgroundColor: bgColors,
+      borderWidth: 0,
+      borderRadius: 1,
+    }]
+  };
+}
+
+function chartOpts(yLabel) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend:{display:false}, tooltip:{
+      callbacks:{ label: ctx => ` ${ctx.raw.toFixed(3)}`, title: ctx => `Residue ${ctx[0].label}` }
+    }},
+    scales: {
+      x:{ display:false },
+      y:{ min:0, max:1, ticks:{font:{size:10}, count:3, callback:v=>v.toFixed(1)}, grid:{color:'rgba(0,0,0,0.05)'} }
+    }
+  };
+}
+
+function renderCharts(d) {
+  destroyCharts();
+  const hs    = d.hotspot_boundaries || [];
+  const probs = d.per_residue_probs  || [];
+  const dis   = d.disorder_scores    || new Array(probs.length).fill(0);
+  const plddt = d.plddt_scores       || new Array(probs.length).fill(0);
+  const rsa   = d.rsa_scores         || new Array(probs.length).fill(0);
+
+  const pairs = [
+    ['chartProb',  probs, 'rgba(229,62,62,1)'],
+    ['chartDis',   dis,   'rgba(128,90,213,1)'],
+    ['chartPlddt', plddt, 'rgba(56,161,105,1)'],
+    ['chartRsa',   rsa,   'rgba(49,130,206,1)'],
+  ];
+
+  pairs.forEach(([id, vals, color]) => {
+    const canvas = document.getElementById(id);
+    if (!canvas || !vals.length) return;
+    charts[id] = new Chart(canvas, {
+      type: 'bar',
+      data: makeChartData(vals, hs, color, id),
+      options: chartOpts()
+    });
+  });
+}
+
+// ── Modality importance ───────────────────────────────────────────────────────
+function renderModality(d) {
+  const gw   = d.gate_weights;
+  const card = document.getElementById('modalCard');
+  if (!gw || !gw.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
+
+  // Average across residues
+  const avg = [0,0,0,0];
+  gw.forEach(row => { row.forEach((v,i) => avg[i]+=v); });
+  const total = avg.reduce((a,v)=>a+v,0);
+  const pcts  = avg.map(v => v/total);
+
+  const names   = ['ESM-2 (sequence)', 'Disorder (IUPred3)', 'AlphaFold (structure)', 'Solvent access (RSA)'];
+  const colors  = ['#1a56db','#805ad5','#38a169','#3182ce'];
+  const row     = document.getElementById('modalRow');
+  row.innerHTML = names.map((n,i) => `
+    <div class="modal-item">
+      <div class="modal-name">${n}</div>
+      <div class="modal-bar-bg">
+        <div class="modal-bar-fill" style="width:${(pcts[i]*100).toFixed(0)}%;background:${colors[i]}"></div>
+      </div>
+      <div class="modal-pct">${(pcts[i]*100).toFixed(1)}% average importance</div>
+    </div>`).join('');
+}
+
+// ── SHAP upload ───────────────────────────────────────────────────────────────
+document.getElementById('shapInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      shapData = JSON.parse(ev.target.result);
+      document.getElementById('dropzoneShap').style.background = '#f0fff4';
+      document.getElementById('dropzoneShap').style.borderColor = '#38a169';
+      renderShap();
+    } catch(e) { alert('Invalid JSON: ' + e.message); }
+  };
+  r.readAsText(f);
+});
+
+const dzShap = document.getElementById('dropzoneShap');
+dzShap.addEventListener('dragover', e => { e.preventDefault(); dzShap.classList.add('drag'); });
+dzShap.addEventListener('dragleave', () => dzShap.classList.remove('drag'));
+dzShap.addEventListener('drop', e => {
+  e.preventDefault(); dzShap.classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try { shapData = JSON.parse(ev.target.result); renderShap(); }
+    catch(e) { alert('Invalid JSON.'); }
+  };
+  r.readAsText(f);
+});
+
+// ── SHAP render ───────────────────────────────────────────────────────────────
+function renderShap() {
+  const card = document.getElementById('shapCard');
+  if (!shapData) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  const names  = shapData.selected_names  || [];
+  const imps   = shapData.importances     || [];
+  const total  = imps.reduce((a,v) => a+v, 0) || 1;
+  const maxI   = Math.max(...imps) || 1;
+  const sorted = names.map((n,i) => ({name:n, imp:imps[i]||0}))
+                      .sort((a,b) => b.imp - a.imp);
+
+  document.getElementById('shapMeta').innerHTML =
+    `<b>${shapData.n_selected_features}</b> features selected out of ${shapData.n_total_features} &nbsp;·&nbsp;
+     n_terminal = <b>${shapData.n_terminal}</b> aa &nbsp;·&nbsp;
+     <b>${((shapData.cumulative_importance||0)*100).toFixed(1)}%</b> of total importance`;
+
+  document.getElementById('shapRows').innerHTML = sorted.map(({name, imp}) => {
+    const pct   = (imp/total*100).toFixed(2);
+    const w     = (imp/maxI*100).toFixed(1);
+    const isN   = name.startsWith('Nterm');
+    const col   = isN ? '#1a56db' : '#c53030';
+    const bgBdg = isN ? '#ebf4ff' : '#fff5f5';
+    const short = name.replace(/^[NC]term_/, '');
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-family:monospace;font-size:11px;color:#444;min-width:190px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;margin-right:3px;background:${bgBdg};color:${col}">${isN?'N':'C'}</span>${short}
+      </span>
+      <div style="flex:1;height:7px;background:#f0f0e8;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${w}%;background:${col};border-radius:4px"></div>
+      </div>
+      <span style="font-size:11px;color:#888;min-width:38px;text-align:right;font-family:monospace">${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+function showTT(e, html) {
+  tt.innerHTML = html;
+  tt.style.opacity = '1';
+  tt.style.left = (e.clientX+14)+'px';
+  tt.style.top  = (e.clientY-10)+'px';
+}
+function hideTT() { tt.style.opacity = '0'; }
+</script>
+
+
+</body></html>
